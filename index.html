@@ -1,94 +1,73 @@
-<!DOCTYPE html>
-<html lang="th">
-<head>
-  <meta charset="UTF-8">
-  <title>กล้องจับผีเสื้อ</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-  <style>
-    body {
-      font-family: 'Kanit', sans-serif;
-      background: #e2f5ff;
-      text-align: center;
-      padding: 20px;
-    }
-    video, canvas {
-      border-radius: 12px;
-      margin-top: 10px;
-    }
-    #label-container {
-      margin-top: 15px;
-      font-size: 24px;
-      color: #0066cc;
-    }
-  </style>
-</head>
-<body>
-  <h1>🦋 กล้องตรวจจับผีเสื้อ</h1>
-  <div id="webcam-container"></div>
-  <div id="label-container">กำลังโหลด...</div>
+<div>Teachable Machine Image Model</div>
+<button type="button" onclick="init()">Start</button>
+<div id="webcam-container"></div>
+<div id="label-container">กำลังโหลด...</div>
 
-  <script>
+<!-- TFJS + TM Image Lib -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest"></script>
+
+<script type="text/javascript">
     const URL = "https://teachablemachine.withgoogle.com/models/rrImebpdZ/";
-
     let model, webcam, labelContainer, maxPredictions;
     let lastSpoken = "";
     let speaking = false;
 
-    window.onload = async () => {
-      await init();
-    };
-
     async function init() {
-      const modelURL = URL + "model.json";
-      const metadataURL = URL + "metadata.json";
+        const modelURL = URL + "model.json";
+        const metadataURL = URL + "metadata.json";
 
-      model = await tmImage.load(modelURL, metadataURL);
-      maxPredictions = model.getTotalClasses();
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
 
-      const flip = true;
-      webcam = new tmImage.Webcam(300, 225, flip);
-      await webcam.setup();
-      await webcam.play();
-      window.requestAnimationFrame(loop);
+        webcam = new tmImage.Webcam(300, 300, true);
+        await webcam.setup();
+        await webcam.play();
+        window.requestAnimationFrame(loop);
 
-      document.getElementById("webcam-container").appendChild(webcam.canvas);
-      labelContainer = document.getElementById("label-container");
-      labelContainer.innerText = "กำลังตรวจสอบ...";
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+        labelContainer = document.getElementById("label-container");
     }
 
     async function loop() {
-      webcam.update();
-      await predict();
-      window.requestAnimationFrame(loop);
+        webcam.update();
+        await predict();
+        window.requestAnimationFrame(loop);
     }
 
     async function predict() {
-      const prediction = await model.predict(webcam.canvas);
+        const prediction = await model.predict(webcam.canvas);
 
-      let best = prediction[0];
-      for (let i = 1; i < prediction.length; i++) {
-        if (prediction[i].probability > best.probability) {
-          best = prediction[i];
+        // หาค่าที่มีความมั่นใจมากที่สุด
+        let best = prediction[0];
+        for (let i = 1; i < prediction.length; i++) {
+            if (prediction[i].probability > best.probability) {
+                best = prediction[i];
+            }
         }
-      }
 
-      const percent = (best.probability * 100).toFixed(1);
-      labelContainer.innerText = `🦋 นี่คือ: ${best.className} (${percent}%)`;
+        const percent = (best.probability * 100).toFixed(1);
+        const text = `🦋 นี่คือ: ${best.className} (${percent}%)`;
 
-      if (best.probability > 0.85 && best.className !== lastSpoken && !speaking) {
-        lastSpoken = best.className;
-        speakThai(`นี่คือ ${best.className}`);
-      }
+        // แสดงเฉพาะเมื่อความมั่นใจเกิน 80%
+        if (best.probability > 0.8) {
+            labelContainer.innerText = text;
+
+            // พูดชื่อเมื่อเป็น class ใหม่และยังไม่พูดซ้ำ
+            if (lastSpoken !== best.className && !speaking) {
+                lastSpoken = best.className;
+                speakThai(`นี่คือ ${best.className}`);
+            }
+        } else {
+            labelContainer.innerText = "ไม่แน่ใจว่าเป็นผีเสื้อชนิดใด";
+        }
     }
 
     function speakThai(text) {
-      const msg = new SpeechSynthesisUtterance(text);
-      msg.lang = "th-TH";
-      speaking = true;
-      window.speechSynthesis.speak(msg);
-      msg.onend = () => { speaking = false };
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.lang = "th-TH";
+        speaking = true;
+        window.speechSynthesis.speak(msg);
+        msg.onend = () => { speaking = false; };
     }
-  </script>
-</body>
-</html>
+</script>
