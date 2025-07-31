@@ -1,70 +1,79 @@
-<div>Teachable Machine Image Model</div>
-<button type="button" onclick="init()">Start</button>
-<div id="webcam-container"></div>
-<div id="label-container">กำลังโหลด...</div>
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>AR ผีเสื้อ</title>
+  <style>
+    body { font-family: 'Kanit', sans-serif; text-align: center; background: #f0f4f8; }
+    canvas { margin-top: 10px; border: 3px solid #333; }
+    #label-container div { font-size: 1.2rem; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>🦋 ระบบจำแนกผีเสื้อ</h1>
+  <div id="webcam-container"></div>
+  <div id="label-container"></div>
 
-<!-- Teachable Machine Libraries -->
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
 
-<script type="text/javascript">
-    const URL = "./my_model/"; // ใช้โมเดลที่อยู่ในโฟลเดอร์ local
+  <script type="text/javascript">
+    const URL = "https://teachablemachine.withgoogle.com/models/ZdJGKSAs3/";
     let model, webcam, labelContainer, maxPredictions;
-    let lastSpoken = "";
-    let speaking = false;
+    let lastClass = "";
 
     async function init() {
-        const modelURL = URL + "model.json";
-        const metadataURL = URL + "metadata.json";
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
 
-        model = await tmImage.load(modelURL, metadataURL);
-        maxPredictions = model.getTotalClasses();
+      model = await tmImage.load(modelURL, metadataURL);
+      maxPredictions = model.getTotalClasses();
 
-        webcam = new tmImage.Webcam(300, 300, true); // ปรับขนาดกล้อง
-        await webcam.setup();
-        await webcam.play();
-        window.requestAnimationFrame(loop);
+      webcam = new tmImage.Webcam(300, 300, true);
+      await webcam.setup();
+      await webcam.play();
+      window.requestAnimationFrame(loop);
 
-        document.getElementById("webcam-container").appendChild(webcam.canvas);
-        labelContainer = document.getElementById("label-container");
+      document.getElementById("webcam-container").appendChild(webcam.canvas);
+      labelContainer = document.getElementById("label-container");
+      for (let i = 0; i < maxPredictions; i++) {
+        labelContainer.appendChild(document.createElement("div"));
+      }
     }
 
     async function loop() {
-        webcam.update();
-        await predict();
-        window.requestAnimationFrame(loop);
+      webcam.update();
+      await predict();
+      window.requestAnimationFrame(loop);
     }
 
     async function predict() {
-        const prediction = await model.predict(webcam.canvas);
+      const prediction = await model.predict(webcam.canvas);
+      prediction.sort((a, b) => b.probability - a.probability);
+      const top = prediction[0];
 
-        let best = prediction[0];
-        for (let i = 1; i < prediction.length; i++) {
-            if (prediction[i].probability > best.probability) {
-                best = prediction[i];
-            }
-        }
+      // แสดงผลที่ดีที่สุด
+      for (let i = 0; i < maxPredictions; i++) {
+        const classPrediction =
+          prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+        labelContainer.childNodes[i].innerHTML = classPrediction;
+      }
 
-        const percent = (best.probability * 100).toFixed(1);
-        const text = `🦋 นี่คือ: ${best.className} (${percent}%)`;
-
-        if (best.probability > 0.8) {
-            labelContainer.innerText = text;
-
-            if (lastSpoken !== best.className && !speaking) {
-                lastSpoken = best.className;
-                speakThai(`นี่คือ ${best.className}`);
-            }
-        } else {
-            labelContainer.innerText = "ไม่แน่ใจว่าเป็นอะไร";
-        }
+      // ถ้าจำแนกได้ชัดเจน (เช่น มากกว่า 85%) และยังไม่พูด
+      if (top.probability > 0.85 && top.className !== lastClass) {
+        lastClass = top.className;
+        speak(`นี่คือ ${top.className}`);
+      }
     }
 
-    function speakThai(text) {
-        const msg = new SpeechSynthesisUtterance(text);
-        msg.lang = "th-TH";
-        speaking = true;
-        window.speechSynthesis.speak(msg);
-        msg.onend = () => { speaking = false; };
+    function speak(text) {
+      const msg = new SpeechSynthesisUtterance(text);
+      msg.lang = 'th-TH';
+      window.speechSynthesis.speak(msg);
     }
-</script>
+
+    // เริ่มทำงานทันที
+    init();
+  </script>
+</body>
+</html>
